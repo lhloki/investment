@@ -1,0 +1,80 @@
+---
+title: "R中portfolio包的比较"
+author: "蓝海"
+output: html_notebook
+---
+
+R中比较常见的资产优化组合相关的包有fPortfolio, parama 和 portfolioanalysis。 下边我们通过几个例子来看看它们各自的特性，以及存在的问题。
+我们考虑资产组合中比较基本的三个问题：
+1. 给定风险，计算期望收益最大的组合
+2. 给定期望收益，计算风险最小组合
+3. 计算市场有效边际。
+具体算例为
+- 3资产模型
+- 参数为： $\mu_1=\mu_2=8\%$,$\mu_3=5\%$,$\sigma_1=20\%$,$\sigma_2=21\%$,$\sigma_3=10\%$ and $\rho_{i,j}=80\%,i\neq j$
+- 问题：
+  + Q1：给定风险$\sigma_p=15\%$，寻找期望收益最大组合。
+  + Q2：给定收益$r_p=7\%$，寻找风险最小的组合。
+  + Q3：计算市场有效边际。
+任何一个资产优化组合包都应该提供以上三个基本的功能，除此之外，应该考虑对更实际、更复杂问题的支持或者拓展的可能。
+# fPortfolio
+安装命令
+```{r, eval=FALSE}
+install.packages('fPortfolio')
+```
+## 测算Q1（可以做空）
+```{r}
+require('fPortfolio')
+my_mean_var_setting<-function(x,spec)
+{
+  mu<-c(0.08,0.08,0.05)
+  names(mu)<-c('A1','A2','A3')
+  Sigma<-matrix(0.8,3,3)
+  Sigma[1,1]<-1
+  Sigma[2,2]<-1
+  Sigma[3,3]<-1
+  var<-c(0.2,0.21,0.1)
+  Sigma<-t(var*Sigma)*var
+  list(mu=mu,Sigma=Sigma)
+}
+setting<-my_mean_var_setting(NULL,NULL)
+colnames(faked_data)<-c('A1','A2','A3')
+mySpec <-portfolioSpec()
+setTargetRisk(mySpec)<-0.15
+setSolver(mySpec)<-'solveRshortExact'  
+port<-maxreturnPortfolio(setting,mySpec,constraints = 'Short')
+print(port)
+```
+这可能是完成Q1问题最为简洁的代码，可是fPortfolio的设计者在构建该软件包的时候，是试图从时序数据开始处理的。对于这样简单的直接给出期望回报和方差的例子在计算的时候反而问题很多。大多数问题都是涉及数据封装。尽管从理论上模型只需要依赖于给出的期望回报和方差，可是在实际的程序中，尤其是一些独立的优化方法调用以及风险度量的模块里头不太合理的访问了原始的时序数据，从而形成了封装不严谨的问题。比如我们的例子中对于期望收益和风险的计算就是不正确的。
+
+## 测算Q1（不可做空）
+
+```{r message=FALSE}
+require('fPortfolio')
+require('Rsocp')
+require('MASS')
+
+my_mean_var_setting<-function(x,spec)
+{
+  mu<-c(0.08,0.08,0.05)
+  names(mu)<-c('A1','A2','A3')
+  Sigma<-matrix(0.8,3,3)
+  Sigma[1,1]<-1
+  Sigma[2,2]<-1
+  Sigma[3,3]<-1
+  var<-c(0.2,0.21,0.1)
+  Sigma<-t(var*Sigma)*var
+  list(mu=mu,Sigma=Sigma)
+}
+setting<-my_mean_var_setting(NULL,NULL)
+faked_data<-mvrnorm(100, setting$mu, setting$Sigma)
+colnames(faked_data)<-c('A1','A2','A3')
+mySpec <-portfolioSpec()
+setTargetRisk(mySpec)<-0.15
+setSolver(mySpec)<-'solveRsocp'  
+setEstimator(mySpec)<-'my_mean_var_setting'
+myData<-portfolioData(as.timeSeries(faked_data),mySpec)
+port<-maxreturnPortfolio(myData,mySpec,constraints = 'Short')
+print(port)
+```
+尽管我们为了使用fportfolio而人为生成了伪时序数据，但是奇怪的是后续在Rsocp包中又试图将作者自定义的类timeSeries转化为R原生数据类型vector从而估计出一个合理的缩放比例进行数值计算的精度控制。这是典型的不合理使用数据封装的例子，达成同样的目的，其实可以使用Sigma数据中的最大数。
