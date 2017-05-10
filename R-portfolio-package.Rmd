@@ -78,3 +78,11 @@ port<-maxreturnPortfolio(myData,mySpec,constraints = 'Short')
 print(port)
 ```
 尽管我们为了使用fportfolio而人为生成了伪时序数据，但是奇怪的是后续在Rsocp包中又试图将作者自定义的类timeSeries转化为R原生数据类型vector从而估计出一个合理的缩放比例进行数值计算的精度控制。这是典型的不合理使用数据封装的例子，达成同样的目的，其实可以使用Sigma数据中的最大数。
+
+R包Rsocp是老式c程序包socp的R接口拓展。改程序解决如下问题。
+$$
+\begin{aligned}
+&\min f^t x \\
+s.t. & ||A_i^tx + b_i||=c_i^t x + d_i
+\end{aligned}
+$$
