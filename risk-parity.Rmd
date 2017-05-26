@@ -1,0 +1,63 @@
+---
+title: "风险平价是一个有效的资产配置方法吗？"
+author: "蓝海"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    include:
+      in_header: header.tex
+  html_notebook: default
+---
+
+  近年来随着资产收益率的普片下跌，资产配置的重要性越来越受到重视。自从Markowtiz开创性的工作以来，现代组合理论就显示出了强大的理论力量。现代组合理论显示资产配置的作用体现在两个方面
+
+1. 利用分散化消除非系统性风险：通常所谓“不把鸡蛋放在同一个篮子里”，是对分散化的生动比喻。足够的分散化能够有效的消除非系统风险——那些单个的资产与其他不相关的风险。但是系统风险并不能被分散化所消除，因为每一个投资对象都或多或少的暴露于同样的系统风险中。
+2. 将投资向主观判断上收益风险比较高的资产倾斜。
+
+这两个因素共同作用，从而保证了构造出的投资组合的有效性。而工业实践中，投资人往往难以提供有效的主观判断，这表现为：
+
+1. 定性的判断必须转换成为定量输入，这是难为的；
+2. 优化组合的结果对于输入高度敏感。
+
+所以，从桥水（BridgeWater) 基金开始，风险平价作为一种启发式的资产配置方法，收到学界和工业界越来越多的关注。风险平价的动机是在没有对于资产回报率的主观偏好的前提下充分利用分散化尽量的消除风险。其结果是调整每个资产的权重使得它们对于整体风险水平的贡献相当。
+
+  这实际上是一个有点“荒谬”的方法，原因是：
+
+1. 分散即便可以作为目标的一部分但是没有严格的逻辑支持它单独成为目标。
+2. 代理投资人，如基金经理，他们的基金管理收入的社会逻辑就来源于他们对于资产收益风险比的高出市场平均水平的判断。如果使用风险平价策略，直接表明他们对于市场超额收益没有判断，那么委托人支付的高昂的管理费用如何合理化呢？
+
+  尽管如此，大量国外的研究和实践揭示了如下两个支持“证据”：
+  
+1. 分散作为目标获得的资产分配方案，不是最优的，却是次优的。
+2. 进10年历史（债券市场牛市）表明，风险平价策略是好于市场平均表现的。
+
+所以，我们还是有必要通过实际的中国的数据来判断，该方法是否具备统计意义上显著的高于市场平均水平的收益表现。
+
+```{r}
+library(FRAPO)
+library(Rsolnp)
+ ## Loading data and computing returns
+data(MultiAsset)
+R <- returnseries(MultiAsset, percentage = TRUE, trim = TRUE)
+ ## GMV
+wGmvAll <- Weights(PGMV(R))
+ ## ERC for all assets
+SigmaAll <- cov(R)
+wErcAll <- Weights(PERC2(SigmaAll))
+ ## Two-step, by asset class
+SigmaEq <- cov(R[, 1:6])
+wErcEq <- Weights(PERC2(SigmaEq))
+rEq <- apply(R[, 1:6], 1, function(x) sum(x * wErcEq / 100))
+SigmaBd <- cov(R[, 7:9])
+wErcBd <- Weights(PERC2(SigmaBd))
+rBd <- apply(R[, 7:9], 1, function(x) sum(x * wErcBd / 100))
+rAsset <- cbind(rEq, rBd, R[, 10])
+SigmaCl <- cov(rAsset)
+wErcCl <- Weights(PERC2(SigmaCl))
+wErcTwoStage <- c(wErcCl[1] * wErcEq / 100, wErcCl[2] * wErcBd / 100, wErcCl[3])
+## comparing the two approaches
+W <- cbind(wGmvAll, wErcAll, wErcTwoStage)
+ ## concentration measure
+Concentration <- apply(W, 2, function(x) sum((x / 100)^2))
+```
+
